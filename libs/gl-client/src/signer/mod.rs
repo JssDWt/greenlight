@@ -7,8 +7,10 @@ use crate::tls::TlsConfig;
 use crate::{node, node::Client};
 use anyhow::{anyhow, Context, Result};
 use bytes::{Buf, BufMut, Bytes};
+use futhark::{Restriction, Rune};
 use lightning_signer::bitcoin::Network;
 use lightning_signer::node::NodeServices;
+use lightning_signer::util::crypto_utils;
 use log::{debug, info, trace, warn};
 use serde_bolt::Octets;
 use std::convert::TryInto;
@@ -26,10 +28,12 @@ mod auth;
 pub mod model;
 
 const VERSION: &str = "v23.05";
+const RUNE_VERSION: &str = "gl0";
 
 #[derive(Clone)]
 pub struct Signer {
     secret: [u8; 32],
+    master_rune: Rune,
     services: NodeServices,
     tls: TlsConfig,
     id: Vec<u8>,
@@ -86,9 +90,20 @@ impl Signer {
         let init = Signer::initmsg(&handler.0)?;
         let id = init[2..35].to_vec();
 
+        // Init master rune. We create the rune seed from the nodes
+        // seed by deriving a hardened key tagged with "rune secret".
+        let rune_secret = crypto_utils::hkdf_sha256(&sec, "rune secret".as_bytes(), &[]);
+        let mr = Rune::new_master_rune(
+            &rune_secret,
+            vec![],
+            Some("0".to_string()),
+            Some(RUNE_VERSION.to_string()),
+        )?;
+
         trace!("Initialized signer for node_id={}", hex::encode(&id));
         Ok(Signer {
             secret: sec,
+            master_rune: mr,
             services,
             tls,
             id,
@@ -553,6 +568,25 @@ impl Signer {
     pub fn version(&self) -> &'static str {
         VERSION
     }
+
+    /// Create a base64 encoded rune from the master rune of this signer.
+    pub fn create_rune(&self, unique_id: &str, res: &str) -> Result<String> {
+        let mut res_str = res;
+        let mut restrictions = vec![];
+        while !res_str.is_empty() {
+            let allow_idfield = restrictions.is_empty();
+            let (restriction, rest_str) = Restriction::decode(res_str, allow_idfield)?;
+            restrictions.push(restriction);
+            res_str = rest_str;
+        }
+        let nr = Rune::new(
+            self.master_rune.authcode(),
+            restrictions,
+            Some(unique_id.to_string()),
+            Some(RUNE_VERSION.to_string()),
+        )?;
+        Ok(nr.to_base64())
+    }
 }
 
 /// Used to decode incoming requests into their corresponding protobuf
@@ -646,5 +680,15 @@ mod tests {
             signer.sign_message(msg.to_vec()).unwrap_err().to_string(),
             format!("Message exceeds max len of {}", u16::MAX)
         );
+    }
+
+    #[test]
+    fn test_runes_set_version() {
+        let signer =
+            Signer::new(vec![0u8; 32], Network::Bitcoin, TlsConfig::new().unwrap()).unwrap();
+
+        let res = "";
+        let test_rune = signer.create_rune("1", res).unwrap();
+        assert_eq!(&test_rune[test_rune.len() - 3..], "DA=")
     }
 }
