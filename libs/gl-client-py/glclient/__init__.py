@@ -93,7 +93,8 @@ class Scheduler(object):
             node_id=self.node_id,
             network=self.network,
             tls=self.tls,
-            grpc_uri=res.grpc_uri
+            grpc_uri=res.grpc_uri,
+            rune=""
         )
 
     def get_invite_codes(self) -> schedpb.ListInviteCodesResponse:
@@ -102,14 +103,15 @@ class Scheduler(object):
 
 
 class Node(object):
-    def __init__(self, node_id: bytes, network: str, tls: TlsConfig, grpc_uri: str) -> None:
+    def __init__(self, node_id: bytes, network: str, tls: TlsConfig, grpc_uri: str, rune: str) -> None:
         self.tls = tls
         self.grpc_uri = grpc_uri
         self.inner = native.Node(
             node_id=node_id,
             network=network,
             tls=tls.inner,
-            grpc_uri=grpc_uri
+            grpc_uri=grpc_uri,
+            rune=rune
         )
         self.logger = logging.getLogger("glclient.Node")
 

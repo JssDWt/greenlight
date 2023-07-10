@@ -31,3 +31,9 @@ def test_max_message_size(clients):
     # Send message too large.
     with pytest.raises(ValueError):
         n1.datastore("some-key", hex=bytes.fromhex(secrets.token_hex(size)))
+
+def test_node_info(clients):
+    c1 = clients.new()
+    c1.register()
+    n1 = c1.node()
+    print(n1.get_info())
