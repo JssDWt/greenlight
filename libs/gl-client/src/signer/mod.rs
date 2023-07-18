@@ -6,6 +6,8 @@ use crate::pb::{node_client::NodeClient, Empty, HsmRequest, HsmRequestContext, H
 use crate::tls::TlsConfig;
 use crate::{node, node::Client};
 use anyhow::{anyhow, Context, Result};
+use base64::engine::general_purpose;
+use base64::Engine;
 use bytes::{Buf, BufMut, Bytes};
 use futhark::{Restriction, Rune};
 use lightning_signer::bitcoin::Network;
@@ -190,7 +192,7 @@ impl Signer {
         use ring::signature::{UnparsedPublicKey, ECDSA_P256_SHA256_FIXED};
         requests
             .into_iter()
-            .filter(|r| r.pubkey.len() != 0 && r.signature.len() != 0)
+            .filter(|r| !r.pubkey.is_empty() && !r.signature.is_empty() && !r.rune.is_empty())
             .map(|r| {
                 let pk = UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, &r.pubkey);
                 let mut data = r.request.clone();
@@ -201,11 +203,20 @@ impl Signer {
                 if r.timestamp != 0 {
                     data.put_u64(r.timestamp);
                 }
-                data.put(&r.rune[..]);
+                let rune = r.rune.clone();
+                data.put(&rune[..]);
 
-                pk.verify(&data, &r.signature)
+                let pr = pk
+                    .verify(&data, &r.signature)
                     .map(|_| r)
-                    .map_err(|e| anyhow!("signature verification failed: {}", e))
+                    .map_err(|e| anyhow!("signature verification failed: {}", e))?;
+
+                // Todo: check rune is valid for the request here.
+                if rune.is_empty() {
+                    return Err(anyhow!("got empty rune"));
+                }
+
+                Ok(pr)
             })
             .collect()
     }
