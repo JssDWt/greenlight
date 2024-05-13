@@ -36,7 +36,6 @@ class NodeProcess(TailableProc):
 
     def __init__(
             self,
-            node_id: bytes,
             init_msg: bytes,
             directory: Path,
             network: Network,
@@ -51,7 +50,6 @@ class NodeProcess(TailableProc):
         self.version = version
         self.proc: Optional[subprocess.Popen] = None
         self.directory = directory
-        self.node_id = node_id
         self.init_msg = init_msg
         self.executable = self.version.lightningd
         self.bind: Optional[str] = None
@@ -130,7 +128,6 @@ class NodeProcess(TailableProc):
             "PATH": f"{self.version.lightningd}:{libexec_path}:{path}",
             "CLN_VERSION": self.version.name,
             "GL_NODE_NETWORK": self.network,
-            "GL_NODE_ID": self.node_id.hex(),
             "GL_NODE_INIT": self.init_msg.hex(),
             "GL_NODE_BIND": self.bind,
             "GL_PLUGIN_CLIENTCA_PATH": str(self.directory / "certs" / "ca.pem"),

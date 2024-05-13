@@ -302,7 +302,6 @@ class AsyncScheduler(schedgrpc.SchedulerServicer):
 
         # Otherwise we need to start a new process
         n.process = NodeProcess(
-            node_id=req.node_id,
             init_msg=n.initmsg,
             directory=n.directory,
             network=n.network,
