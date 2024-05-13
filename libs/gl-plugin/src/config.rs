@@ -177,27 +177,15 @@ impl Config {
 
 #[derive(Clone, Debug)]
 pub struct NodeInfo {
-    pub node_id: Vec<u8>,
     pub initmsg: Vec<u8>,
 }
 
 impl NodeInfo {
     fn new() -> Result<Self> {
-        let node_id = match std::env::var("GL_NODE_ID") {
-            Ok(v) => hex::decode(v)?,
-            Err(_) => return Err(anyhow!("Environment variable GL_NODE_ID is not set")),
-        };
-
         let initmsg = hex::decode(std::env::var("GL_NODE_INIT").context("Missing GL_NODE_INIT")?)
             .context("Malformed GL_NODE_INIT")?;
 
-        if node_id.len() != 33 {
-            return Err(anyhow!(
-                "GL_NODE_ID is not a 33 byte hex-encoded public-key",
-            ));
-        }
-
-        Ok(NodeInfo { node_id, initmsg })
+        Ok(NodeInfo { initmsg })
     }
 }
 
